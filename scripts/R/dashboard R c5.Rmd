@@ -1,0 +1,133 @@
+---
+title: "Dashboard Control 5"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(tidyverse)    
+library(plotly)        
+library(scales)       
+library(lubridate)     
+library(corrplot)      
+library(gridExtra)     
+library(hrbrthemes)   
+library(stats)
+```
+```{r}
+datos <- read.csv("enhanced_saas_marketing_data.csv")
+```
+```{r}
+# Preparación inicial de datos
+datos_prep <- datos %>%
+  # Convertir fecha a formato Date
+  mutate(
+    date = as.Date(date),
+    month = floor_date(date, "month"),
+    # Crear métricas derivadas
+    gross_margin = (revenue - costs) / revenue,
+    marketing_efficiency = revenue / marketing_spend,
+    clv_cac_ratio = customer_lifetime_value / customer_acquisition_cost
+  )
+```
+
+
+
+Column {data-width=650}
+-----------------------------------------------------------------------
+
+### Chart A
+
+```{r}
+# Función para crear gráfico de tendencias
+crear_tendencias <- function(datos, metrica, titulo) {
+  grafico <- datos %>%
+    group_by(date, company) %>%
+    summarise(valor = mean(!!sym(metrica)), .groups = "drop") %>%
+    ggplot(aes(x = date, y = valor, color = company)) +
+    geom_line(size = 1) +
+    geom_point(size = 2) +
+    theme_ipsum() +
+    labs(
+      title = titulo,
+      x = "Fecha",
+      y = metrica
+    ) +
+    theme(legend.position = "bottom")
+
+  return(ggplotly(grafico))
+}
+
+# Crear gráficos de tendencias
+tendencias_revenue <- crear_tendencias(datos_prep, "revenue",
+                                     "Tendencia de Ingresos por Empresa")
+tendencias_cac <- crear_tendencias(datos_prep, "customer_acquisition_cost",
+                                  "Evolución del CAC")
+tendencias_revenue
+tendencias_cac
+```
+
+Column {data-width=350}
+-----------------------------------------------------------------------
+
+### Chart B
+
+```{r}
+# Función para análisis de distribución
+analizar_distribucion <- function(datos, variable) {
+  # Histograma
+  hist <- ggplot(datos, aes(x = !!sym(variable), fill = company)) +
+    geom_histogram(alpha = 0.6, bins = 30) +
+    facet_wrap(~company, scales = "free") +
+    theme_minimal() +
+    labs(title = paste("Distribución de", variable))
+
+  # Box plot
+  box <- ggplot(datos, aes(x = company, y = !!sym(variable), fill = company)) +
+    geom_boxplot() +
+    theme_minimal() +
+    labs(title = paste("Box Plot de", variable)) +
+    theme(axis.text.x = element_text(angle = 45))
+
+  # Combinar gráficos
+  grid.arrange(hist, box, ncol = 1)
+}
+
+# Analizar distribuciones de métricas clave
+analizar_distribucion(datos_prep, "revenue")
+analizar_distribucion(datos_prep, "customer_lifetime_value")
+
+```
+
+### Chart C
+
+```{r}
+# Función para análisis de ROI
+analisis_roi <- function(datos) {
+  roi_plot <- datos %>%
+    group_by(company, month) %>%
+    summarise(
+      marketing_roi = mean(marketing_roi),
+      marketing_spend = mean(marketing_spend), .groups = "drop"
+    ) %>%
+    ggplot(aes(x = marketing_spend, y = marketing_roi, color = company)) +
+    geom_point(size = 3, alpha = 0.6) +
+    geom_smooth(method = "lm", formula = y ~ x, se = FALSE) +
+    theme_minimal() +
+    labs(
+      title = "ROI vs Inversión en Marketing",
+      x = "Inversión en Marketing",
+      y = "ROI"
+    )
+
+  return(ggplotly(roi_plot))
+}
+
+# Visualizar análisis de ROI
+grafico_roi <- analisis_roi(datos_prep)
+grafico_roi
+```
+
